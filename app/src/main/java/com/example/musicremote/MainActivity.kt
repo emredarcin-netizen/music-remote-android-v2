@@ -304,6 +304,7 @@ class MainActivity : Activity() {
         status = TextView(this).apply {
             text = "●  MÜZİK BEKLENİYOR"
             textSize = statusSizeSp()
+            maxLines = 2
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(green)
             gravity = Gravity.CENTER
@@ -504,10 +505,11 @@ class MainActivity : Activity() {
         val playing = state?.state == PlaybackState.STATE_PLAYING
         playButton.text = if (playing) "Ⅱ" else "▶"
 
+        val platform = platformName(active.packageName)
         status.text = if (playing) {
-            "●  ŞİMDİ ÇALIYOR"
+            "●  ŞİMDİ ÇALIYOR  ·  $platform"
         } else {
-            "●  DURAKLATILDI"
+            "●  DURAKLATILDI  ·  $platform"
         }
 
         val total = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
@@ -884,8 +886,17 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun sourceName(pkg: String) =
-        if (pkg.contains("youtube")) "YouTube Music" else "Spotify"
+    private fun sourceName(pkg: String) = platformName(pkg)
+
+    private fun platformName(pkg: String): String {
+        val normalized = pkg.lowercase(Locale.ROOT)
+        return when {
+            normalized.contains("spotify") -> "Spotify"
+            normalized.contains("youtube") -> "YouTube Music"
+            normalized.contains("music") -> "Müzik uygulaması"
+            else -> "Medya oynatıcı"
+        }
+    }
 
     private fun formatTime(ms: Long): String {
         val seconds = (ms / 1000).coerceAtLeast(0)

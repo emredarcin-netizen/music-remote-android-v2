@@ -13,12 +13,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -35,11 +34,10 @@ jobs:
       - name: Install Android SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Verify project files
+      - name: Check project files
         run: |
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
-          echo "Project files found."
 
       - name: Build APK
         run: gradle assembleDebug

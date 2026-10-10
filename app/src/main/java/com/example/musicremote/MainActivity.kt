@@ -220,7 +220,7 @@ class MainActivity : Activity() {
             text = "☁"
             textSize = weatherIconSizeSp()
             setTextColor(green)
-            setPadding(dp(4), dp(4), dp(7), dp(4))
+            setPadding(dp(2), dp(4), dp(0), dp(4))
             contentDescription = "Hava durumu konumunu seç"
             isClickable = true
             isFocusable = true
@@ -252,7 +252,7 @@ class MainActivity : Activity() {
         ))
         weatherColumn.addView(weatherTextColumn, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ))
+        ).apply { marginStart = -dp(4) })
         header.addView(weatherColumn, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ))

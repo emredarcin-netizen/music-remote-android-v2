@@ -502,7 +502,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun albumSizeDp(): Int = uiPrefs.getInt("album_size", 330).coerceIn(220, 360)
+    private fun albumSizeDp(): Int = uiPrefs.getInt("album_size", 400).coerceIn(220, 800)
     private fun titleSizeSp(): Float = uiPrefs.getInt("title_size", 37).coerceIn(24, 44).toFloat()
     private fun artistSizeSp(): Float = uiPrefs.getInt("artist_size", 26).coerceIn(16, 32).toFloat()
     private fun controlsSizeDp(): Int = uiPrefs.getInt("controls_size", 64).coerceIn(52, 76)
@@ -558,7 +558,7 @@ class MainActivity : Activity() {
         }
 
         val albumSlider = addSlider(
-            "Albüm kapağı", "album_size", 220, 360, albumSizeDp(), " dp"
+            "Albüm kapağı", "album_size", 220, 800, albumSizeDp(), " dp"
         ) { }
         val titleSlider = addSlider(
             "Şarkı adı", "title_size", 24, 44, titleSizeSp().toInt(), " sp"

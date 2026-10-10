@@ -26,6 +26,9 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.SeekBar
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -73,10 +76,35 @@ class MainActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    private val bg = Color.rgb(9, 17, 29)
-    private val panel = Color.rgb(25, 39, 57)
-    private val green = Color.rgb(22, 245, 132)
-    private val muted = Color.rgb(167, 185, 208)
+    private val selectedTheme: String get() = uiPrefs.getString("theme", "midnight") ?: "midnight"
+    private val bg: Int get() = when (selectedTheme) {
+        "ocean" -> Color.rgb(4, 24, 43)
+        "emerald" -> Color.rgb(7, 31, 27)
+        "purple" -> Color.rgb(27, 17, 43)
+        "black" -> Color.rgb(0, 0, 0)
+        else -> Color.rgb(9, 17, 29)
+    }
+    private val panel: Int get() = when (selectedTheme) {
+        "ocean" -> Color.rgb(17, 54, 78)
+        "emerald" -> Color.rgb(20, 59, 48)
+        "purple" -> Color.rgb(52, 35, 73)
+        "black" -> Color.rgb(24, 24, 24)
+        else -> Color.rgb(25, 39, 57)
+    }
+    private val green: Int get() = when (selectedTheme) {
+        "ocean" -> Color.rgb(65, 205, 255)
+        "emerald" -> Color.rgb(71, 245, 165)
+        "purple" -> Color.rgb(199, 139, 255)
+        "black" -> Color.rgb(255, 190, 70)
+        else -> Color.rgb(22, 245, 132)
+    }
+    private val muted: Int get() = when (selectedTheme) {
+        "ocean" -> Color.rgb(164, 204, 224)
+        "emerald" -> Color.rgb(165, 211, 190)
+        "purple" -> Color.rgb(205, 188, 224)
+        "black" -> Color.rgb(190, 190, 190)
+        else -> Color.rgb(167, 185, 208)
+    }
 
     private val clockTask = object : Runnable {
         override fun run() {
@@ -167,14 +195,14 @@ class MainActivity : Activity() {
         }
         clockText = TextView(this).apply {
             text = "--:--"
-            textSize = 32f
+            textSize = clockSizeSp()
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             includeFontPadding = false
         }
         dateText = TextView(this).apply {
             text = "Konum bekleniyor"
-            textSize = 12f
+            textSize = dateSizeSp()
             setTextColor(muted)
             maxLines = 1
         }
@@ -188,7 +216,7 @@ class MainActivity : Activity() {
         }
         weatherIcon = TextView(this).apply {
             text = "☁"
-            textSize = 32f
+            textSize = weatherIconSizeSp()
             setTextColor(green)
             setPadding(0, 0, dp(7), 0)
         }
@@ -198,7 +226,7 @@ class MainActivity : Activity() {
         }
         temperatureText = TextView(this).apply {
             text = "--°"
-            textSize = 25f
+            textSize = temperatureSizeSp()
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.END
@@ -206,7 +234,7 @@ class MainActivity : Activity() {
         }
         weatherDescription = TextView(this).apply {
             text = "Hava durumu"
-            textSize = 11f
+            textSize = weatherDescriptionSizeSp()
             setTextColor(muted)
             gravity = Gravity.END
             maxLines = 1
@@ -506,6 +534,11 @@ class MainActivity : Activity() {
     private fun titleSizeSp(): Float = uiPrefs.getInt("title_size", 37).coerceIn(24, 44).toFloat()
     private fun artistSizeSp(): Float = uiPrefs.getInt("artist_size", 26).coerceIn(16, 32).toFloat()
     private fun controlsSizeDp(): Int = uiPrefs.getInt("controls_size", 64).coerceIn(52, 76)
+    private fun clockSizeSp(): Float = uiPrefs.getInt("clock_size", 32).coerceIn(24, 48).toFloat()
+    private fun dateSizeSp(): Float = uiPrefs.getInt("date_size", 12).coerceIn(10, 18).toFloat()
+    private fun weatherIconSizeSp(): Float = uiPrefs.getInt("weather_size", 32).coerceIn(20, 44).toFloat()
+    private fun temperatureSizeSp(): Float = uiPrefs.getInt("temperature_size", 25).coerceIn(20, 40).toFloat()
+    private fun weatherDescriptionSizeSp(): Float = uiPrefs.getInt("weather_description_size", 11).coerceIn(9, 16).toFloat()
 
     private fun showSettingsDialog() {
         val outer = LinearLayout(this).apply {
@@ -569,6 +602,45 @@ class MainActivity : Activity() {
         val controlsSlider = addSlider(
             "Kontrol butonları", "controls_size", 52, 76, controlsSizeDp(), " dp"
         ) { }
+        val clockSlider = addSlider(
+            "Saat boyutu", "clock_size", 24, 48, clockSizeSp().toInt(), " sp"
+        ) { }
+        val weatherSlider = addSlider(
+            "Hava durumu boyutu", "weather_size", 20, 44, weatherIconSizeSp().toInt(), " sp"
+        ) { }
+
+        val themeLabel = TextView(this).apply {
+            text = "Tema seçimi"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(14), 0, dp(4))
+        }
+        outer.addView(themeLabel, matchWrap())
+        val themeGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+        }
+        val themes = listOf(
+            "midnight" to "Gece mavisi",
+            "ocean" to "Okyanus",
+            "emerald" to "Zümrüt",
+            "purple" to "Mor gece",
+            "black" to "Siyah / amber"
+        )
+        themes.forEach { (key, label) ->
+            val radio = RadioButton(this).apply {
+                id = View.generateViewId()
+                text = label
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                buttonTintList = android.content.res.ColorStateList.valueOf(green)
+                tag = key
+                isChecked = selectedTheme == key
+            }
+            themeGroup.addView(radio, matchWrap())
+            if (selectedTheme == key) themeGroup.check(radio.id)
+        }
+        outer.addView(themeGroup, matchWrap())
 
         val note = TextView(this).apply {
             text = "Değişiklikler kaydedildikten sonra ana ekrana uygulanır."
@@ -578,8 +650,12 @@ class MainActivity : Activity() {
         }
         outer.addView(note, matchWrap())
 
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(outer)
+        }
         val dialog = android.app.AlertDialog.Builder(this)
-            .setView(outer)
+            .setView(scroll)
             .setPositiveButton("Kaydet", null)
             .setNeutralButton("Varsayılana dön", null)
             .setNegativeButton("İptal", null)
@@ -597,6 +673,12 @@ class MainActivity : Activity() {
                     .putInt("title_size", 24 + titleSlider.progress)
                     .putInt("artist_size", 16 + artistSlider.progress)
                     .putInt("controls_size", 52 + controlsSlider.progress)
+                    .putInt("clock_size", 24 + clockSlider.progress)
+                    .putInt("date_size", (10 + ((clockSlider.progress * 8f) / 24f).toInt()).coerceIn(10, 18))
+                    .putInt("weather_size", 20 + weatherSlider.progress)
+                    .putInt("temperature_size", (20 + ((weatherSlider.progress * 20f) / 24f).toInt()).coerceIn(20, 40))
+                    .putInt("weather_description_size", (9 + ((weatherSlider.progress * 7f) / 24f).toInt()).coerceIn(9, 16))
+                    .putString("theme", (themeGroup.findViewById<RadioButton>(themeGroup.checkedRadioButtonId)?.tag as? String) ?: selectedTheme)
                     .apply()
                 dialog.dismiss()
                 rebuildUiPreservingTrack()
@@ -617,6 +699,8 @@ class MainActivity : Activity() {
         val savedArtist = artist.text.toString()
         val savedStatus = status.text.toString()
         val savedBitmap = (art.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
         buildUi()
         title.text = savedTitle
         artist.text = savedArtist

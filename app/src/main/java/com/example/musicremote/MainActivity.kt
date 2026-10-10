@@ -3,6 +3,7 @@ package com.example.musicremote
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -15,6 +16,9 @@ import android.media.session.PlaybackState
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.provider.Settings
 import android.util.Base64
 import android.view.Gravity
@@ -26,6 +30,12 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -38,8 +48,16 @@ class MainActivity : Activity() {
     private lateinit var progress: SeekBar
     private lateinit var elapsed: TextView
     private lateinit var durationText: TextView
+    private lateinit var clockText: TextView
+    private lateinit var dateText: TextView
+    private lateinit var weatherIcon: TextView
+    private lateinit var temperatureText: TextView
+    private lateinit var weatherDescription: TextView
 
     private var controller: MediaController? = null
+    private var locationManager: LocationManager? = null
+    private var lastWeatherUpdate = 0L
+    private var locationListener: LocationListener? = null
     private var lastKey = ""
     private var pendingCoverKey = ""
     private var coverRetryCount = 0
@@ -55,6 +73,16 @@ class MainActivity : Activity() {
     private val green = Color.rgb(22, 245, 132)
     private val muted = Color.rgb(167, 185, 208)
 
+    private val clockTask = object : Runnable {
+        override fun run() {
+            if (::clockText.isInitialized) {
+                clockText.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                dateText.text = SimpleDateFormat("EEEE, d MMMM", Locale("tr", "TR")).format(Date())
+            }
+            handler.postDelayed(this, 1000)
+        }
+    }
+
     private val refreshTask = object : Runnable {
         override fun run() {
             refreshMedia()
@@ -69,17 +97,37 @@ class MainActivity : Activity() {
         window.navigationBarColor = bg
         buildUi()
         restoreLastTrack()
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
     }
 
     override fun onResume() {
         super.onResume()
         handler.removeCallbacks(refreshTask)
+        handler.removeCallbacks(clockTask)
         handler.post(refreshTask)
+        handler.post(clockTask)
+        updateClockAndWeather()
     }
 
     override fun onPause() {
         handler.removeCallbacks(refreshTask)
+        handler.removeCallbacks(clockTask)
+        stopLocationUpdates()
         super.onPause()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST &&
+            grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
+            findCurrentLocation()
+        } else if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            weatherDescription.text = "Konum izni gerekli"
+        }
     }
 
     private fun buildUi() {
@@ -101,24 +149,75 @@ class MainActivity : Activity() {
             )
         )
 
-        val header = TextView(this).apply {
-            text = "MUSIC REMOTE"
-            textSize = 24f
-            letterSpacing = 0.06f
+        // Üst bölüm: gerçek saat/tarih ve otomatik konuma göre hava durumu.
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(5), dp(4), dp(8))
+        }
+
+        val clockColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        clockText = TextView(this).apply {
+            text = "--:--"
+            textSize = 32f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+            includeFontPadding = false
         }
-        screen.addView(header, matchWrap())
-
-        val subtitle = TextView(this).apply {
-            text = "Y O U R   M U S I C   •   Y O U R   M O M E N T"
-            textSize = 9f
+        dateText = TextView(this).apply {
+            text = "Konum bekleniyor"
+            textSize = 12f
             setTextColor(muted)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(4))
+            maxLines = 1
         }
-        screen.addView(subtitle, matchWrap())
+        clockColumn.addView(clockText, matchWrap())
+        clockColumn.addView(dateText, matchWrap())
+        header.addView(clockColumn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        val weatherColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        weatherIcon = TextView(this).apply {
+            text = "☁"
+            textSize = 32f
+            setTextColor(green)
+            setPadding(0, 0, dp(7), 0)
+        }
+        val weatherTextColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        temperatureText = TextView(this).apply {
+            text = "--°"
+            textSize = 25f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.END
+            includeFontPadding = false
+        }
+        weatherDescription = TextView(this).apply {
+            text = "Hava durumu"
+            textSize = 11f
+            setTextColor(muted)
+            gravity = Gravity.END
+            maxLines = 1
+        }
+        weatherTextColumn.addView(temperatureText, matchWrap())
+        weatherTextColumn.addView(weatherDescription, matchWrap())
+        weatherColumn.addView(weatherIcon, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+        weatherColumn.addView(weatherTextColumn, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+        header.addView(weatherColumn, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+        screen.addView(header, matchWidth())
 
         val topSpace = View(this)
         screen.addView(topSpace, LinearLayout.LayoutParams(1, 0, 0.05f))
@@ -388,6 +487,138 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun updateClockAndWeather() {
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED) {
+            findCurrentLocation()
+        } else {
+            requestPermissions(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                LOCATION_PERMISSION_REQUEST
+            )
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun findCurrentLocation() {
+        val manager = locationManager ?: return
+        try {
+            val lastKnown = listOf(
+                LocationManager.NETWORK_PROVIDER,
+                LocationManager.GPS_PROVIDER
+            ).firstNotNullOfOrNull { provider ->
+                try {
+                    if (manager.isProviderEnabled(provider)) manager.getLastKnownLocation(provider)
+                    else null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+
+            if (lastKnown != null) {
+                loadWeather(lastKnown.latitude, lastKnown.longitude)
+                return
+            }
+
+            weatherDescription.text = "Konum bulunuyor…"
+            stopLocationUpdates()
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    stopLocationUpdates()
+                    loadWeather(location.latitude, location.longitude)
+                }
+                @Deprecated("Deprecated in Android")
+                override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {}
+            }
+            locationListener = listener
+            var requested = false
+            for (provider in listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)) {
+                try {
+                    if (manager.isProviderEnabled(provider)) {
+                        manager.requestLocationUpdates(provider, 1000L, 0f, listener, Looper.getMainLooper())
+                        requested = true
+                    }
+                } catch (_: Exception) {
+                }
+            }
+            if (!requested) weatherDescription.text = "Konum kapalı"
+        } catch (_: SecurityException) {
+            weatherDescription.text = "Konum izni gerekli"
+        } catch (_: Exception) {
+            weatherDescription.text = "Konum alınamadı"
+        }
+    }
+
+    private fun stopLocationUpdates() {
+        val listener = locationListener
+        if (listener != null) {
+            try {
+                locationManager?.removeUpdates(listener)
+            } catch (_: Exception) {
+            }
+            locationListener = null
+        }
+    }
+
+    private fun loadWeather(latitude: Double, longitude: Double) {
+        val now = System.currentTimeMillis()
+        if (now - lastWeatherUpdate < 10 * 60 * 1000L) return
+        lastWeatherUpdate = now
+        weatherDescription.text = "Hava yükleniyor…"
+
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                val url = URL(
+                    "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,weather_code&timezone=auto"
+                )
+                connection = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                    requestMethod = "GET"
+                }
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val current = JSONObject(response).getJSONObject("current")
+                val temperature = current.getDouble("temperature_2m").toInt()
+                val code = current.getInt("weather_code")
+                val (icon, description) = weatherForCode(code)
+
+                runOnUiThread {
+                    temperatureText.text = "${temperature}°"
+                    weatherIcon.text = icon
+                    weatherDescription.text = description
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    weatherDescription.text = "Hava alınamadı"
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }.start()
+    }
+
+    private fun weatherForCode(code: Int): Pair<String, String> = when (code) {
+        0 -> "☀" to "Açık"
+        1, 2 -> "🌤" to "Az bulutlu"
+        3 -> "☁" to "Bulutlu"
+        45, 48 -> "🌫" to "Sisli"
+        51, 53, 55, 56, 57 -> "🌦" to "Çisenti"
+        61, 63, 65, 66, 67 -> "🌧" to "Yağmurlu"
+        71, 73, 75, 77 -> "❄" to "Karlı"
+        80, 81, 82 -> "🌧" to "Sağanak"
+        85, 86 -> "❄" to "Kar yağışı"
+        95, 96, 99 -> "⛈" to "Fırtınalı"
+        else -> "☁" to "Değişken"
+    }
+
     private fun refreshAfterTrackChange() {
         // Medya uygulamasının yeni parça bilgilerini yayınlaması zaman alabilir.
         handler.postDelayed({ refreshMedia() }, 250)
@@ -482,4 +713,7 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST = 2041
+    }
 }

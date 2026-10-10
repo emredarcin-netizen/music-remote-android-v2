@@ -17,6 +17,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Base64
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -26,7 +27,6 @@ import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import java.io.ByteArrayOutputStream
-import android.util.Base64
 
 class MainActivity : Activity() {
 
@@ -49,6 +49,11 @@ class MainActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())
 
+    private val bg = Color.rgb(9, 17, 29)
+    private val panel = Color.rgb(25, 39, 57)
+    private val green = Color.rgb(22, 245, 132)
+    private val muted = Color.rgb(167, 185, 208)
+
     private val refreshTask = object : Runnable {
         override fun run() {
             refreshMedia()
@@ -56,16 +61,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private val bg = Color.rgb(9, 17, 29)
-    private val panel = Color.rgb(25, 39, 57)
-    private val green = Color.rgb(22, 245, 132)
-    private val muted = Color.rgb(167, 185, 208)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         window.statusBarColor = bg
         window.navigationBarColor = bg
-        window.decorView.systemUiVisibility = 0
         buildUi()
         restoreLastTrack()
     }
@@ -85,14 +85,20 @@ class MainActivity : Activity() {
         val screen = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(22), dp(12), dp(22), dp(12))
+            setPadding(dp(20), dp(10), dp(20), dp(10))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.rgb(18, 32, 51), bg, Color.rgb(5, 12, 21))
             )
         }
 
-        setContentView(screen)
+        setContentView(
+            screen,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+        )
 
         val header = TextView(this).apply {
             text = "MUSIC REMOTE"
@@ -109,12 +115,12 @@ class MainActivity : Activity() {
             textSize = 10f
             setTextColor(muted)
             gravity = Gravity.CENTER
-            setPadding(0, dp(4), 0, dp(14))
+            setPadding(0, dp(3), 0, dp(8))
         }
         screen.addView(subtitle, matchWrap())
 
-        val spacerTop = View(this)
-        screen.addView(spacerTop, LinearLayout.LayoutParams(1, 0, 0.35f))
+        val topSpace = View(this)
+        screen.addView(topSpace, LinearLayout.LayoutParams(1, 0, 0.2f))
 
         art = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -126,29 +132,29 @@ class MainActivity : Activity() {
 
         screen.addView(
             art,
-            LinearLayout.LayoutParams(dp(230), dp(230)).apply {
+            LinearLayout.LayoutParams(dp(270), dp(270)).apply {
                 gravity = Gravity.CENTER
             }
         )
 
         title = TextView(this).apply {
             text = "Henüz müzik algılanmadı"
-            textSize = 29f
+            textSize = 31f
             maxLines = 2
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(dp(4), dp(18), dp(4), 0)
+            setPadding(dp(2), dp(16), dp(2), 0)
         }
         screen.addView(title, matchWrap())
 
         artist = TextView(this).apply {
             text = "Spotify veya YouTube Music'i başlatın"
-            textSize = 21f
+            textSize = 22f
             maxLines = 1
             setTextColor(muted)
             gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, dp(12))
+            setPadding(0, dp(5), 0, dp(8))
         }
         screen.addView(artist, matchWrap())
 
@@ -161,8 +167,8 @@ class MainActivity : Activity() {
         }
         screen.addView(status, matchWrap())
 
-        val spacerMiddle = View(this)
-        screen.addView(spacerMiddle, LinearLayout.LayoutParams(1, 0, 0.65f))
+        val middleSpace = View(this)
+        screen.addView(middleSpace, LinearLayout.LayoutParams(1, 0, 0.25f))
 
         progress = SeekBar(this).apply {
             max = 1000
@@ -172,8 +178,17 @@ class MainActivity : Activity() {
                 android.content.res.ColorStateList.valueOf(green)
             progressBackgroundTintList =
                 android.content.res.ColorStateList.valueOf(panel)
+            minimumHeight = dp(34)
+            setPadding(dp(2), 0, dp(2), 0)
         }
-        screen.addView(progress, matchWidth())
+
+        screen.addView(
+            progress,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+            )
+        )
 
         val times = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -184,31 +199,40 @@ class MainActivity : Activity() {
         durationText = smallTime("0:00")
 
         times.addView(elapsed, LinearLayout.LayoutParams(0, -2, 1f))
-        times.addView(durationText, LinearLayout.LayoutParams(0, -2, 1f).apply {
-            gravity = Gravity.END
-        })
+        times.addView(
+            durationText,
+            LinearLayout.LayoutParams(0, -2, 1f).apply {
+                gravity = Gravity.END
+            }
+        )
         screen.addView(times, matchWidth())
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(18), 0, dp(16))
+            setPadding(0, dp(12), 0, dp(12))
         }
         screen.addView(controls, matchWidth())
 
-        val previous = control("⏮", panel, Color.WHITE)
-        controls.addView(previous, LinearLayout.LayoutParams(0, dp(76), 1f).apply {
-            setMargins(0, 0, dp(8), 0)
-        })
+        val previous = control("⏮", panel, Color.WHITE, 26f)
+        controls.addView(
+            previous,
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(0, 0, dp(7), 0)
+            }
+        )
         previous.setOnClickListener {
             controller?.transportControls?.skipToPrevious()
             handler.postDelayed({ refreshMedia() }, 400)
         }
 
-        playButton = control("▶", green, bg)
-        controls.addView(playButton, LinearLayout.LayoutParams(0, dp(84), 1.15f).apply {
-            setMargins(dp(2), 0, dp(2), 0)
-        })
+        playButton = control("▶", green, bg, 31f)
+        controls.addView(
+            playButton,
+            LinearLayout.LayoutParams(0, dp(78), 1.15f).apply {
+                setMargins(dp(2), 0, dp(2), 0)
+            }
+        )
         playButton.setOnClickListener {
             val c = controller
             if (c == null) {
@@ -223,20 +247,31 @@ class MainActivity : Activity() {
             }
         }
 
-        val next = control("⏭", panel, Color.WHITE)
-        controls.addView(next, LinearLayout.LayoutParams(0, dp(76), 1f).apply {
-            setMargins(dp(8), 0, 0, 0)
-        })
+        val next = control("⏭", panel, Color.WHITE, 26f)
+        controls.addView(
+            next,
+            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+                setMargins(dp(7), 0, 0, 0)
+            }
+        )
         next.setOnClickListener {
             controller?.transportControls?.skipToNext()
             handler.postDelayed({ refreshMedia() }, 400)
         }
 
-        permissionButton = control("◉  MEDYA ERİŞİMİNİ ETKİNLEŞTİR", panel, muted)
-        permissionButton.textSize = 13f
-        screen.addView(permissionButton, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(62)
-        ))
+        permissionButton = control(
+            "◉  MEDYA ERİŞİMİNİ ETKİNLEŞTİR",
+            panel,
+            muted,
+            13f
+        )
+        screen.addView(
+            permissionButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(54)
+            )
+        )
         permissionButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
@@ -246,12 +281,12 @@ class MainActivity : Activity() {
             textSize = 10f
             setTextColor(muted)
             gravity = Gravity.CENTER
-            setPadding(0, dp(18), 0, dp(6))
+            setPadding(0, dp(12), 0, dp(2))
         }
         screen.addView(footer, matchWrap())
 
-        val spacerBottom = View(this)
-        screen.addView(spacerBottom, LinearLayout.LayoutParams(1, 0, 0.25f))
+        val bottomSpace = View(this)
+        screen.addView(bottomSpace, LinearLayout.LayoutParams(1, 0, 0.15f))
     }
 
     private fun refreshMedia() {
@@ -270,9 +305,7 @@ class MainActivity : Activity() {
 
         val supported = sessions.filter {
             val pkg = it.packageName.lowercase()
-            pkg.contains("spotify") ||
-                pkg.contains("youtube") ||
-                pkg.contains("music")
+            pkg.contains("spotify") || pkg.contains("youtube") || pkg.contains("music")
         }
 
         val active = supported.firstOrNull {
@@ -296,32 +329,36 @@ class MainActivity : Activity() {
             ?: ""
 
         val key = "${active.packageName}|$track|$performer"
+
         if (track.isNotBlank()) {
             title.text = track
             artist.text = performer.ifBlank { sourceName(active.packageName) }
 
-            val bitmap = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-
             if (key != lastKey) {
+                val bitmap = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                    ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                    ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+
                 if (bitmap != null) {
                     art.setImageBitmap(bitmap)
                     saveBitmap(bitmap)
                 }
+
                 prefs.edit()
                     .putString("title", track)
                     .putString("artist", artist.text.toString())
                     .putString("package", active.packageName)
                     .apply()
+
                 lastKey = key
             }
         }
 
         val state = active.playbackState
-        val isPlaying = state?.state == PlaybackState.STATE_PLAYING
-        playButton.text = if (isPlaying) "Ⅱ" else "▶"
-        status.text = if (isPlaying) {
+        val playing = state?.state == PlaybackState.STATE_PLAYING
+        playButton.text = if (playing) "Ⅱ" else "▶"
+
+        status.text = if (playing) {
             "●  ŞİMDİ ÇALIYOR"
         } else {
             "●  DURAKLATILDI"
@@ -329,21 +366,20 @@ class MainActivity : Activity() {
 
         val total = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
         val position = state?.position ?: 0L
-        if (total > 0) {
-            progress.max = 1000
+
+        if (total > 0L) {
             progress.progress = ((position.toDouble() / total) * 1000)
                 .toInt().coerceIn(0, 1000)
             elapsed.text = formatTime(position)
             durationText.text = formatTime(total)
-        } else {
-            elapsed.text = "0:00"
-            durationText.text = "0:00"
         }
     }
 
     private fun restoreLastTrack() {
         title.text = prefs.getString("title", "Henüz müzik algılanmadı")
-        artist.text = prefs.getString("artist", "Spotify veya YouTube Music'i başlatın")
+        artist.text = prefs.getString(
+            "artist", "Spotify veya YouTube Music'i başlatın"
+        )
         status.text = "●  SON ÇALAN PARÇA KAYITLI"
 
         val encoded = prefs.getString("art", null)
@@ -360,20 +396,18 @@ class MainActivity : Activity() {
 
     private fun saveBitmap(bitmap: Bitmap) {
         try {
-            val scaled = Bitmap.createScaledBitmap(
-                bitmap,
-                minOf(bitmap.width, 500),
-                minOf(bitmap.height, 500),
-                true
-            )
+            val width = 500
+            val height = (bitmap.height.toFloat() / bitmap.width * width)
+                .toInt().coerceAtLeast(1)
+            val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
             val output = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, 82, output)
+            scaled.compress(Bitmap.CompressFormat.JPEG, 85, output)
             prefs.edit().putString(
                 "art",
                 Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
             ).apply()
         } catch (_: Exception) {
-            // Şarkı bilgileri yine de kaydedilir.
+            // Kapak kaydedilemezse parça bilgisi yine korunur.
         }
     }
 
@@ -381,27 +415,31 @@ class MainActivity : Activity() {
         if (pkg.contains("youtube")) "YouTube Music" else "Spotify"
 
     private fun formatTime(ms: Long): String {
-        val totalSeconds = (ms / 1000).coerceAtLeast(0)
-        return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
+        val seconds = (ms / 1000).coerceAtLeast(0)
+        return "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
     }
 
     private fun smallTime(value: String) = TextView(this).apply {
         text = value
-        textSize = 13f
+        textSize = 15f
         setTextColor(muted)
         setPadding(dp(4), dp(2), dp(4), 0)
     }
 
-    private fun control(label: String, color: Int, textColor: Int) =
-        Button(this).apply {
-            text = label
-            textSize = 21f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(textColor)
-            background = rounded(color, 22)
-            isAllCaps = false
-            stateListAnimator = null
-        }
+    private fun control(
+        label: String,
+        color: Int,
+        textColor: Int,
+        size: Float
+    ) = Button(this).apply {
+        text = label
+        textSize = size
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(textColor)
+        background = rounded(color, 22)
+        isAllCaps = false
+        stateListAnimator = null
+    }
 
     private fun rounded(color: Int, radius: Int) =
         GradientDrawable().apply {

@@ -17,11 +17,11 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Button
 import android.graphics.drawable.GradientDrawable
 import java.io.File
 import java.io.FileOutputStream
@@ -37,11 +37,10 @@ class MainActivity : Activity() {
 
     private var selectedController: MediaController? = null
     private val handler = Handler(Looper.getMainLooper())
-    private val prefs by lazy {
-        getSharedPreferences("music_remote_saved", MODE_PRIVATE)
-    }
 
-    private var lastKey = ""
+    private val prefs by lazy {
+        getSharedPreferences("music_remote_memory", MODE_PRIVATE)
+    }
 
     private val refresh = object : Runnable {
         override fun run() {
@@ -52,12 +51,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(10, 12, 15)
-        window.navigationBarColor = Color.rgb(10, 12, 15)
-        window.decorView.systemUiVisibility = 0
-
         buildUi()
-        showSavedTrack()
+        restoreLastTrack()
     }
 
     override fun onResume() {
@@ -72,61 +67,49 @@ class MainActivity : Activity() {
     }
 
     private fun buildUi() {
-        val scroll = ScrollView(this).apply {
-            setFillViewport(true)
-            setBackgroundColor(Color.rgb(10, 12, 15))
-        }
+        val scroll = ScrollView(this)
 
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(22), dp(18), dp(22), dp(18))
-            setBackgroundColor(Color.rgb(10, 12, 15))
+            setPadding(dp(20), dp(12), dp(20), dp(16))
+            setBackgroundColor(Color.rgb(13, 16, 25))
         }
 
-        scroll.addView(
-            root,
-            ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.MATCH_PARENT
-            )
-        )
+        scroll.addView(root)
         setContentView(scroll)
 
-        val header = TextView(this).apply {
-            text = "♫     MUSIC REMOTE"
-            textSize = 22f
-            typeface = Typeface.DEFAULT_BOLD
+        val heading = TextView(this).apply {
+            text = "MUSIC REMOTE"
+            textSize = 18f
             setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
         }
-        root.addView(header, matchWrap())
-        addSpace(24)
+        root.addView(heading, matchWrap())
 
-        // Albüm kapağı: önceki 260 dp yerine 130 dp
         art = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(Color.rgb(35, 40, 48))
+            setBackgroundColor(Color.rgb(55, 60, 72))
             setImageResource(android.R.drawable.ic_media_play)
             contentDescription = "Albüm kapağı"
             clipToOutline = true
-            background = roundedBackground(
-                Color.rgb(35, 40, 48), 18
-            )
+            background = roundedBackground(Color.rgb(55, 60, 72), 14)
         }
 
+        // Küçük albüm kapağı: dikey ekranda da taşmaz.
         root.addView(
             art,
             LinearLayout.LayoutParams(dp(130), dp(130)).apply {
                 gravity = Gravity.CENTER
+                topMargin = dp(14)
+                bottomMargin = dp(14)
             }
         )
 
-        addSpace(18)
-
         title = TextView(this).apply {
             text = "Henüz müzik algılanmadı"
-            textSize = 22f
+            textSize = 20f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -136,92 +119,55 @@ class MainActivity : Activity() {
 
         artist = TextView(this).apply {
             text = "Spotify veya YouTube Music'i başlatın"
-            textSize = 16f
-            setTextColor(Color.rgb(165, 170, 185))
+            textSize = 15f
+            setTextColor(Color.rgb(190, 198, 211))
             gravity = Gravity.CENTER
+            setPadding(dp(4), dp(5), dp(4), dp(8))
             maxLines = 2
-            setPadding(0, dp(8), 0, 0)
         }
         root.addView(artist, matchWrap())
 
-        addSpace(26)
+        status = TextView(this).apply {
+            text = "Müzik bekleniyor"
+            textSize = 12f
+            setTextColor(Color.rgb(55, 230, 110))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(2), 0, dp(10))
+        }
+        root.addView(status, matchWrap())
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-
         root.addView(controls, matchWrap())
 
-        val previous = makeControl("⏮", 30f, Color.WHITE)
-        previous.setOnClickListener {
+        controls.addView(controlButton("⏮") {
             selectedController?.transportControls?.skipToPrevious()
             handler.postDelayed({ refreshMedia() }, 350)
-        }
+        })
 
-        val play = TextView(this).apply {
-            text = "▶"
-            textSize = 30f
-            gravity = Gravity.CENTER
-            setTextColor(Color.BLACK)
-            background = roundedBackground(
-                Color.rgb(29, 220, 103), 100
-            )
-            contentDescription = "Oynat veya duraklat"
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                val controller = selectedController
-                if (controller != null) {
-                    if (controller.playbackState?.state ==
-                        android.media.session.PlaybackState.STATE_PLAYING
-                    ) {
-                        controller.transportControls.pause()
-                    } else {
-                        controller.transportControls.play()
-                    }
+        controls.addView(controlButton("▶") {
+            val controller = selectedController
+            if (controller != null) {
+                if (controller.playbackState?.state ==
+                    android.media.session.PlaybackState.STATE_PLAYING
+                ) {
+                    controller.transportControls.pause()
+                } else {
+                    controller.transportControls.play()
                 }
-                handler.postDelayed({ refreshMedia() }, 350)
             }
-        }
+            handler.postDelayed({ refreshMedia() }, 350)
+        })
 
-        val next = makeControl("⏭", 30f, Color.WHITE)
-        next.setOnClickListener {
+        controls.addView(controlButton("⏭") {
             selectedController?.transportControls?.skipToNext()
             handler.postDelayed({ refreshMedia() }, 350)
-        }
-
-        controls.addView(
-            previous,
-            LinearLayout.LayoutParams(0, dp(58), 1f)
-        )
-        controls.addView(
-            play,
-            LinearLayout.LayoutParams(dp(66), dp(66)).apply {
-                gravity = Gravity.CENTER
-                leftMargin = dp(12)
-                rightMargin = dp(12)
-            }
-        )
-        controls.addView(
-            next,
-            LinearLayout.LayoutParams(0, dp(58), 1f)
-        )
-
-        addSpace(22)
-
-        status = TextView(this).apply {
-            text = "Müzik bekleniyor"
-            textSize = 14f
-            setTextColor(Color.rgb(29, 220, 103))
-            gravity = Gravity.CENTER
-        }
-        root.addView(status, matchWrap())
+        })
 
         permissionButton = Button(this).apply {
             text = "MEDYA ERİŞİMİNİ ETKİNLEŞTİR"
-            textSize = 13f
-            setTextColor(Color.WHITE)
             setOnClickListener {
                 startActivity(
                     Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
@@ -235,7 +181,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = dp(24)
+                topMargin = dp(12)
             }
         )
     }
@@ -243,11 +189,8 @@ class MainActivity : Activity() {
     private fun refreshMedia() {
         val manager =
             getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
-
-        val component = ComponentName(
-            this,
-            MusicNotificationListener::class.java
-        )
+        val component =
+            ComponentName(this, MusicNotificationListener::class.java)
 
         val controllers = try {
             manager.getActiveSessions(component)
@@ -260,6 +203,8 @@ class MainActivity : Activity() {
             return
         }
 
+        permissionButton.visibility = View.GONE
+
         val supported = controllers.filter {
             val pkg = it.packageName.lowercase()
             pkg.contains("spotify") ||
@@ -267,27 +212,21 @@ class MainActivity : Activity() {
                 pkg.contains("music")
         }
 
-        val playing = supported.firstOrNull {
+        val controller = supported.firstOrNull {
             it.playbackState?.state ==
                 android.media.session.PlaybackState.STATE_PLAYING
-        }
+        } ?: supported.firstOrNull()
 
-        val controller = playing ?: supported.firstOrNull()
         selectedController = controller
 
         if (controller == null) {
-            permissionButton.visibility = View.VISIBLE
-            showSavedTrack()
+            status.text = "Son çalan parça gösteriliyor"
             return
         }
 
-        permissionButton.visibility = View.GONE
-
         val metadata = controller.metadata
-        val track = metadata
-            ?.getString(MediaMetadata.METADATA_KEY_TITLE)
-            .orEmpty()
-
+        val track =
+            metadata?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
         val performer =
             metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
                 ?: metadata?.getString(
@@ -295,134 +234,103 @@ class MainActivity : Activity() {
                 )
                 ?: ""
 
-        val key = "${controller.packageName}|$track|$performer"
+        val bitmap =
+            metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                ?: metadata?.getBitmap(
+                    MediaMetadata.METADATA_KEY_ALBUM_ART
+                )
+                ?: metadata?.getBitmap(
+                    MediaMetadata.METADATA_KEY_DISPLAY_ICON
+                )
 
         if (track.isNotBlank()) {
             title.text = track
             artist.text = performer.ifBlank {
-                sourceName(controller.packageName)
-            }
-
-            if (key != lastKey) {
-                val bitmap =
-                    metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                        ?: metadata?.getBitmap(
-                            MediaMetadata.METADATA_KEY_ALBUM_ART
-                        )
-                        ?: metadata?.getBitmap(
-                            MediaMetadata.METADATA_KEY_DISPLAY_ICON
-                        )
-
-                if (bitmap != null) {
-                    art.setImageBitmap(bitmap)
-                    saveCover(bitmap)
+                if (controller.packageName.contains("youtube")) {
+                    "YouTube Music"
                 } else {
-                    // Yeni parçanın kapağı paylaşılmıyorsa
-                    // önceki kayıtlı kapağı silmeyiz.
-                    showSavedCover()
+                    "Spotify"
                 }
-
-                prefs.edit()
-                    .putString("track_title", track)
-                    .putString("track_artist", performer)
-                    .putString("track_source", controller.packageName)
-                    .apply()
-
-                lastKey = key
             }
-        } else {
-            showSavedTrack()
+
+            prefs.edit()
+                .putString("last_title", track)
+                .putString("last_artist", artist.text.toString())
+                .putString("last_package", controller.packageName)
+                .apply()
+
+            if (bitmap != null) {
+                art.setImageBitmap(bitmap)
+                saveCover(bitmap)
+            }
         }
 
-        status.text = when (
-            controller.playbackState?.state
-        ) {
-            android.media.session.PlaybackState.STATE_PLAYING ->
-                "● ŞİMDİ ÇALIYOR"
-            android.media.session.PlaybackState.STATE_PAUSED ->
-                "DURAKLATILDI"
-            else -> "MEDYA OTURUMU BULUNDU"
-        }
+        status.text =
+            if (controller.playbackState?.state ==
+                android.media.session.PlaybackState.STATE_PLAYING
+            ) {
+                "Şimdi çalıyor"
+            } else {
+                "Duraklatıldı"
+            }
     }
 
     private fun saveCover(bitmap: Bitmap) {
         try {
-            val file = File(filesDir, "last_album_cover.jpg")
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            val file = File(filesDir, "last_album_cover.png")
+            FileOutputStream(file).use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
             }
             prefs.edit().putBoolean("has_cover", true).apply()
         } catch (_: Exception) {
-            // Görsel kaydedilemezse uygulama çalışmaya devam eder.
+            // Kapak kaydedilemezse uygulama çalışmaya devam eder.
         }
     }
 
-    private fun showSavedCover() {
-        val file = File(filesDir, "last_album_cover.jpg")
-        if (file.exists()) {
-            val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-            if (bitmap != null) art.setImageBitmap(bitmap)
-        }
-    }
+    private fun restoreLastTrack() {
+        val savedTitle = prefs.getString("last_title", null)
+        val savedArtist = prefs.getString("last_artist", null)
 
-    private fun showSavedTrack() {
-        if (!::title.isInitialized) return
-
-        val savedTitle = prefs.getString("track_title", "").orEmpty()
-        val savedArtist = prefs.getString("track_artist", "").orEmpty()
-
-        if (savedTitle.isNotBlank()) {
+        if (!savedTitle.isNullOrBlank()) {
             title.text = savedTitle
-            artist.text = savedArtist.ifBlank { "Son çalan parça" }
-            showSavedCover()
+            artist.text = savedArtist ?: ""
+            status.text = "Son çalan parça"
 
-            if (selectedController == null) {
-                status.text = "SON ÇALAN PARÇA"
+            try {
+                val file = File(filesDir, "last_album_cover.png")
+                if (file.exists()) {
+                    val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+                    if (bitmap != null) art.setImageBitmap(bitmap)
+                }
+            } catch (_: Exception) {
+                // Kayıtlı kapak okunamazsa varsayılan görsel kalır.
             }
-        } else {
-            title.text = "Henüz müzik algılanmadı"
-            artist.text = "Spotify veya YouTube Music'i başlatın"
-            status.text = "Müzik bekleniyor"
         }
     }
 
-    private fun sourceName(pkg: String): String =
-        if (pkg.contains("youtube")) "YouTube Music"
-        else "Spotify"
-
-    private fun makeControl(
+    private fun controlButton(
         symbol: String,
-        size: Float,
-        color: Int
-    ): TextView =
-        TextView(this).apply {
+        action: () -> Unit
+    ): Button {
+        return Button(this).apply {
             text = symbol
-            textSize = size
-            setTextColor(color)
-            gravity = Gravity.CENTER
-            contentDescription = when (symbol) {
-                "⏮" -> "Önceki parça"
-                else -> "Sonraki parça"
+            textSize = 21f
+            setTextColor(Color.WHITE)
+            background = roundedBackground(Color.rgb(40, 220, 85), 40)
+            setOnClickListener { action() }
+            layoutParams = LinearLayout.LayoutParams(
+                0, dp(54), 1f
+            ).apply {
+                setMargins(dp(5), dp(4), dp(5), dp(4))
             }
-            isClickable = true
-            isFocusable = true
         }
+    }
 
-    private fun roundedBackground(
-        color: Int,
-        radius: Int
-    ): GradientDrawable =
+    private fun roundedBackground(color: Int, radius: Int) =
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
         }
-
-    private fun addSpace(size: Int) {
-        root.addView(
-            View(this),
-            LinearLayout.LayoutParams(1, dp(size))
-        )
-    }
 
     private fun matchWrap() = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,

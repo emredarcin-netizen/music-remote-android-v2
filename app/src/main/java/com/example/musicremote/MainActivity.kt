@@ -25,8 +25,8 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import java.io.ByteArrayOutputStream
@@ -53,6 +53,7 @@ class MainActivity : Activity() {
     private lateinit var weatherIcon: TextView
     private lateinit var temperatureText: TextView
     private lateinit var weatherDescription: TextView
+    private lateinit var settingsButton: Button
 
     private var controller: MediaController? = null
     private var locationManager: LocationManager? = null
@@ -64,6 +65,10 @@ class MainActivity : Activity() {
 
     private val prefs by lazy {
         getSharedPreferences("music_remote_saved", MODE_PRIVATE)
+    }
+
+    private val uiPrefs by lazy {
+        getSharedPreferences("music_remote_ui", MODE_PRIVATE)
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -217,6 +222,16 @@ class MainActivity : Activity() {
         header.addView(weatherColumn, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ))
+
+        settingsButton = control("⚙", panel, Color.WHITE, 23f)
+        settingsButton.minWidth = dp(48)
+        settingsButton.minimumWidth = dp(48)
+        settingsButton.setPadding(dp(4), 0, dp(4), 0)
+        header.addView(settingsButton, LinearLayout.LayoutParams(dp(50), dp(48)).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+        settingsButton.setOnClickListener { showSettingsDialog() }
+
         screen.addView(header, matchWidth())
 
         val topSpace = View(this)
@@ -232,14 +247,14 @@ class MainActivity : Activity() {
 
         screen.addView(
             art,
-            LinearLayout.LayoutParams(dp(330), dp(330)).apply {
+            LinearLayout.LayoutParams(albumSizeDp(), albumSizeDp()).apply {
                 gravity = Gravity.CENTER
             }
         )
 
         title = TextView(this).apply {
             text = "Henüz müzik algılanmadı"
-            textSize = 37f
+            textSize = titleSizeSp()
             maxLines = 2
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
@@ -250,7 +265,7 @@ class MainActivity : Activity() {
 
         artist = TextView(this).apply {
             text = "Spotify veya YouTube Music'i başlatın"
-            textSize = 26f
+            textSize = artistSizeSp()
             maxLines = 1
             setTextColor(muted)
             gravity = Gravity.CENTER
@@ -317,7 +332,7 @@ class MainActivity : Activity() {
         val previous = control("⏮", panel, Color.WHITE, 26f)
         controls.addView(
             previous,
-            LinearLayout.LayoutParams(0, dp(64), 1f).apply {
+            LinearLayout.LayoutParams(0, dp(controlsSizeDp()), 1f).apply {
                 setMargins(0, 0, dp(7), 0)
             }
         )
@@ -329,7 +344,7 @@ class MainActivity : Activity() {
         playButton = control("▶", green, bg, 31f)
         controls.addView(
             playButton,
-            LinearLayout.LayoutParams(0, dp(72), 1.15f).apply {
+            LinearLayout.LayoutParams(0, dp(controlsSizeDp() + 8), 1.15f).apply {
                 setMargins(dp(2), 0, dp(2), 0)
             }
         )
@@ -350,7 +365,7 @@ class MainActivity : Activity() {
         val next = control("⏭", panel, Color.WHITE, 26f)
         controls.addView(
             next,
-            LinearLayout.LayoutParams(0, dp(64), 1f).apply {
+            LinearLayout.LayoutParams(0, dp(controlsSizeDp()), 1f).apply {
                 setMargins(dp(7), 0, 0, 0)
             }
         )
@@ -485,6 +500,131 @@ class MainActivity : Activity() {
             elapsed.text = formatTime(position)
             durationText.text = formatTime(total)
         }
+    }
+
+    private fun albumSizeDp(): Int = uiPrefs.getInt("album_size", 330).coerceIn(220, 360)
+    private fun titleSizeSp(): Float = uiPrefs.getInt("title_size", 37).coerceIn(24, 44).toFloat()
+    private fun artistSizeSp(): Float = uiPrefs.getInt("artist_size", 26).coerceIn(16, 32).toFloat()
+    private fun controlsSizeDp(): Int = uiPrefs.getInt("controls_size", 64).coerceIn(52, 76)
+
+    private fun showSettingsDialog() {
+        val outer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(8), dp(22), dp(4))
+        }
+        val heading = TextView(this).apply {
+            text = "Görünüm ayarları"
+            textSize = 22f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, dp(8))
+        }
+        outer.addView(heading, matchWrap())
+
+        fun addSlider(
+            label: String,
+            key: String,
+            min: Int,
+            max: Int,
+            initial: Int,
+            unit: String,
+            onPreview: (Int) -> Unit
+        ): SeekBar {
+            val valueLabel = TextView(this).apply {
+                text = "$label: ${initial}$unit"
+                textSize = 15f
+                setTextColor(Color.WHITE)
+                setPadding(0, dp(10), 0, dp(2))
+            }
+            outer.addView(valueLabel, matchWrap())
+            val slider = SeekBar(this).apply {
+                this.max = max - min
+                progress = initial - min
+                progressTintList = android.content.res.ColorStateList.valueOf(green)
+                thumbTintList = android.content.res.ColorStateList.valueOf(green)
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(panel)
+            }
+            slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val value = min + progress
+                    valueLabel.text = "$label: ${value}$unit"
+                    onPreview(value)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+            outer.addView(slider, matchWidth())
+            return slider
+        }
+
+        val albumSlider = addSlider(
+            "Albüm kapağı", "album_size", 220, 360, albumSizeDp(), " dp"
+        ) { }
+        val titleSlider = addSlider(
+            "Şarkı adı", "title_size", 24, 44, titleSizeSp().toInt(), " sp"
+        ) { }
+        val artistSlider = addSlider(
+            "Sanatçı adı", "artist_size", 16, 32, artistSizeSp().toInt(), " sp"
+        ) { }
+        val controlsSlider = addSlider(
+            "Kontrol butonları", "controls_size", 52, 76, controlsSizeDp(), " dp"
+        ) { }
+
+        val note = TextView(this).apply {
+            text = "Değişiklikler kaydedildikten sonra ana ekrana uygulanır."
+            textSize = 12f
+            setTextColor(muted)
+            setPadding(0, dp(8), 0, dp(4))
+        }
+        outer.addView(note, matchWrap())
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setView(outer)
+            .setPositiveButton("Kaydet", null)
+            .setNeutralButton("Varsayılana dön", null)
+            .setNegativeButton("İptal", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(rounded(bg, 22))
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setTextColor(green)
+            dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).setTextColor(muted)
+            dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setTextColor(green)
+
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                uiPrefs.edit()
+                    .putInt("album_size", 220 + albumSlider.progress)
+                    .putInt("title_size", 24 + titleSlider.progress)
+                    .putInt("artist_size", 16 + artistSlider.progress)
+                    .putInt("controls_size", 52 + controlsSlider.progress)
+                    .apply()
+                dialog.dismiss()
+                rebuildUiPreservingTrack()
+                Toast.makeText(this, "Görünüm ayarları kaydedildi", Toast.LENGTH_SHORT).show()
+            }
+
+            dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                uiPrefs.edit().clear().apply()
+                dialog.dismiss()
+                recreate()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun rebuildUiPreservingTrack() {
+        val savedTitle = title.text.toString()
+        val savedArtist = artist.text.toString()
+        val savedStatus = status.text.toString()
+        val savedBitmap = (art.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+        buildUi()
+        title.text = savedTitle
+        artist.text = savedArtist
+        status.text = savedStatus
+        if (savedBitmap != null) art.setImageBitmap(savedBitmap) else restoreLastTrack()
+        // Keep the player session and playback state intact.
+        refreshMedia()
+        updateClockAndWeather()
     }
 
     private fun updateClockAndWeather() {

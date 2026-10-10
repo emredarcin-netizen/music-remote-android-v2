@@ -1,4 +1,3 @@
-```kotlin
 package com.example.musicremote
 
 import android.app.Activity
@@ -339,4 +338,3 @@ class MainActivity : Activity() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 }
-```

@@ -376,11 +376,21 @@ class MainActivity : Activity() {
             refreshAfterTrackChange()
         }
 
-        playButton = control("▶", green, bg, 31f)
+        playButton = control("▶", green, bg, 31f).apply {
+            // Only the play/pause button is circular; other controls keep their existing design.
+            background = circular(green)
+            setPadding(0, 0, 0, 0)
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            includeFontPadding = false
+        }
         controls.addView(
             playButton,
-            LinearLayout.LayoutParams(0, dp(controlsSizeDp() + 8), 1.15f).apply {
-                setMargins(dp(2), 0, dp(2), 0)
+            LinearLayout.LayoutParams(dp(controlsSizeDp() + 8), dp(controlsSizeDp() + 8)).apply {
+                gravity = Gravity.CENTER
+                setMargins(dp(8), 0, dp(8), 0)
             }
         )
         playButton.setOnClickListener {
@@ -1080,6 +1090,13 @@ class MainActivity : Activity() {
         GradientDrawable().apply {
             setColor(color)
             cornerRadius = dp(radius).toFloat()
+            setStroke(dp(1), Color.rgb(39, 57, 79))
+        }
+
+    private fun circular(color: Int) =
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
             setStroke(dp(1), Color.rgb(39, 57, 79))
         }
 

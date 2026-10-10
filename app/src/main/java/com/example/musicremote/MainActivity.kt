@@ -61,6 +61,8 @@ class MainActivity : Activity() {
     private var controller: MediaController? = null
     private var locationManager: LocationManager? = null
     private var lastWeatherUpdate = 0L
+    private var lastWeatherLatitude = Double.NaN
+    private var lastWeatherLongitude = Double.NaN
     private var locationListener: LocationListener? = null
     private var lastKey = ""
     private var pendingCoverKey = ""
@@ -218,7 +220,11 @@ class MainActivity : Activity() {
             text = "☁"
             textSize = weatherIconSizeSp()
             setTextColor(green)
-            setPadding(0, 0, dp(7), 0)
+            setPadding(dp(4), dp(4), dp(7), dp(4))
+            contentDescription = "Hava durumu konumunu seç"
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { showLocationPicker() }
         }
         val weatherTextColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -710,6 +716,14 @@ class MainActivity : Activity() {
     }
 
     private fun updateClockAndWeather() {
+        if (uiPrefs.getBoolean("manual_weather_location", false)) {
+            val lat = uiPrefs.getString("weather_latitude", null)?.toDoubleOrNull()
+            val lon = uiPrefs.getString("weather_longitude", null)?.toDoubleOrNull()
+            if (lat != null && lon != null) {
+                loadWeather(lat, lon)
+                return
+            }
+        }
         if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED ||
             checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -789,10 +803,14 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadWeather(latitude: Double, longitude: Double) {
+    private fun loadWeather(latitude: Double, longitude: Double, force: Boolean = false) {
         val now = System.currentTimeMillis()
-        if (now - lastWeatherUpdate < 10 * 60 * 1000L) return
+        val sameLocation = kotlin.math.abs(latitude - lastWeatherLatitude) < 0.001 &&
+            kotlin.math.abs(longitude - lastWeatherLongitude) < 0.001
+        if (!force && sameLocation && now - lastWeatherUpdate < 10 * 60 * 1000L) return
         lastWeatherUpdate = now
+        lastWeatherLatitude = latitude
+        lastWeatherLongitude = longitude
         weatherDescription.text = "Hava yükleniyor…"
 
         Thread {
@@ -824,6 +842,139 @@ class MainActivity : Activity() {
             } finally {
                 connection?.disconnect()
             }
+        }.start()
+    }
+
+    private data class TurkishPlace(val id: Int, val name: String)
+
+    private fun showLocationPicker() {
+        val options = arrayOf("İl ve ilçe seç", "Otomatik konumu kullan")
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Hava durumu konumu")
+            .setItems(options) { _, which ->
+                if (which == 0) fetchProvincesAndChoose()
+                else {
+                    uiPrefs.edit().putBoolean("manual_weather_location", false).apply()
+                    Toast.makeText(this, "Otomatik konum kullanılacak", Toast.LENGTH_SHORT).show()
+                    updateClockAndWeather()
+                }
+            }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    private fun fetchProvincesAndChoose() {
+        Toast.makeText(this, "İller yükleniyor…", Toast.LENGTH_SHORT).show()
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL("https://api.turkiyeapi.dev/v2/provinces?limit=100").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    requestMethod = "GET"
+                }
+                val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                val data = json.getJSONArray("data")
+                val provinces = (0 until data.length()).map { i ->
+                    val item = data.getJSONObject(i)
+                    TurkishPlace(item.getInt("id"), item.getString("name"))
+                }.sortedBy { it.name }
+                runOnUiThread {
+                    if (provinces.isEmpty()) {
+                        Toast.makeText(this, "İl listesi alınamadı", Toast.LENGTH_LONG).show()
+                    } else showProvinceDialog(provinces)
+                }
+            } catch (_: Exception) {
+                runOnUiThread { Toast.makeText(this, "İller alınamadı. İnternet bağlantısını kontrol et.", Toast.LENGTH_LONG).show() }
+            } finally { connection?.disconnect() }
+        }.start()
+    }
+
+    private fun showProvinceDialog(provinces: List<TurkishPlace>) {
+        val names = provinces.map { it.name }.toTypedArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("İl seç")
+            .setItems(names) { _, which -> fetchDistrictsAndChoose(provinces[which]) }
+            .setNegativeButton("İptal", null)
+            .show()
+    }
+
+    private fun fetchDistrictsAndChoose(province: TurkishPlace) {
+        Toast.makeText(this, "${province.name} ilçeleri yükleniyor…", Toast.LENGTH_SHORT).show()
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = (URL("https://api.turkiyeapi.dev/v2/provinces/${province.id}/districts?limit=1000").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    requestMethod = "GET"
+                }
+                val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                val data = json.getJSONArray("data")
+                val districts = (0 until data.length()).map { i ->
+                    val item = data.getJSONObject(i)
+                    TurkishPlace(item.getInt("id"), item.getString("name"))
+                }.sortedBy { it.name }
+                runOnUiThread {
+                    if (districts.isEmpty()) Toast.makeText(this, "İlçe listesi alınamadı", Toast.LENGTH_LONG).show()
+                    else showDistrictDialog(province, districts)
+                }
+            } catch (_: Exception) {
+                runOnUiThread { Toast.makeText(this, "İlçeler alınamadı. İnternet bağlantısını kontrol et.", Toast.LENGTH_LONG).show() }
+            } finally { connection?.disconnect() }
+        }.start()
+    }
+
+    private fun showDistrictDialog(province: TurkishPlace, districts: List<TurkishPlace>) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("${province.name} — ilçe seç")
+            .setItems(districts.map { it.name }.toTypedArray()) { _, which ->
+                fetchCoordinatesForDistrict(province, districts[which])
+            }
+            .setNegativeButton("Geri") { _, _ -> fetchProvincesAndChoose() }
+            .show()
+    }
+
+    private fun fetchCoordinatesForDistrict(province: TurkishPlace, district: TurkishPlace) {
+        weatherDescription.text = "Konum aranıyor…"
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                val query = java.net.URLEncoder.encode("${district.name}, ${province.name}, Türkiye", "UTF-8")
+                connection = (URL("https://geocoding-api.open-meteo.com/v1/search?name=$query&count=10&language=tr&format=json&countryCode=TR").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    requestMethod = "GET"
+                }
+                val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                val results = json.optJSONArray("results") ?: throw IllegalStateException("Konum bulunamadı")
+                if (results.length() == 0) throw IllegalStateException("Konum bulunamadı")
+                var chosen: JSONObject? = null
+                for (i in 0 until results.length()) {
+                    val item = results.getJSONObject(i)
+                    if (item.optString("country_code").equals("TR", true) &&
+                        item.optString("admin1").equals(province.name, true)) {
+                        chosen = item
+                        break
+                    }
+                }
+                val place = chosen ?: results.getJSONObject(0)
+                val lat = place.getDouble("latitude")
+                val lon = place.getDouble("longitude")
+                uiPrefs.edit()
+                    .putBoolean("manual_weather_location", true)
+                    .putString("weather_province", province.name)
+                    .putString("weather_district", district.name)
+                    .putString("weather_latitude", lat.toString())
+                    .putString("weather_longitude", lon.toString())
+                    .apply()
+                runOnUiThread {
+                    Toast.makeText(this, "Hava durumu: ${province.name} / ${district.name}", Toast.LENGTH_SHORT).show()
+                    loadWeather(lat, lon, true)
+                }
+            } catch (_: Exception) {
+                runOnUiThread { Toast.makeText(this, "Bu ilçe için hava durumu konumu bulunamadı", Toast.LENGTH_LONG).show() }
+            } finally { connection?.disconnect() }
         }.start()
     }
 

@@ -1,3 +1,4 @@
+
 package com.example.musicremote
 
 import android.app.Activity
@@ -5,6 +6,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -12,6 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.content.pm.ActivityInfo
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -21,13 +24,12 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 class MainActivity : Activity() {
-    private lateinit var root: LinearLayout
+    private var controller: MediaController? = null
     private lateinit var art: ImageView
     private lateinit var title: TextView
     private lateinit var artist: TextView
     private lateinit var status: TextView
-    private lateinit var permissionButton: Button
-    private var selectedController: MediaController? = null
+    private lateinit var permission: Button
     private val handler = Handler(Looper.getMainLooper())
     private var lastKey = ""
 
@@ -40,8 +42,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(18, 18, 18)
-        window.navigationBarColor = Color.rgb(18, 18, 18)
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        window.statusBarColor = Color.rgb(16, 17, 20)
+        window.navigationBarColor = Color.rgb(16, 17, 20)
         buildUi()
     }
 
@@ -56,186 +59,183 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
-        super.onConfigurationChanged(newConfig)
-        buildUi()
-        refreshMedia()
+    private fun dp(v: Int) =
+        (v * resources.displayMetrics.density).toInt()
+
+    private fun rounded(color: Int, radius: Int): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
+        }
+
+    private fun text(
+        value: String,
+        size: Float,
+        color: Int,
+        bold: Boolean = false
+    ) = TextView(this).apply {
+        text = value
+        textSize = size
+        setTextColor(color)
+        gravity = Gravity.CENTER
+        if (bold) typeface = Typeface.DEFAULT_BOLD
+        includeFontPadding = true
     }
 
     private fun buildUi() {
-        val landscape = resources.configuration.orientation ==
-            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val green = Color.rgb(30, 215, 96)
+        val white = Color.WHITE
+        val muted = Color.rgb(179, 179, 179)
+        val black = Color.rgb(16, 17, 20)
 
         val scroll = ScrollView(this).apply {
-            setBackgroundColor(Color.rgb(18, 18, 18))
+            setBackgroundColor(black)
             isFillViewport = true
         }
 
-        root = LinearLayout(this).apply {
-            orientation = if (landscape) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(20), dp(16), dp(20), dp(16))
-            setBackgroundColor(Color.rgb(18, 18, 18))
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(20), dp(24), dp(18))
+            setBackgroundColor(black)
         }
         scroll.addView(root)
         setContentView(scroll)
 
-        val content = LinearLayout(this).apply {
-            orientation = if (landscape) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        root.addView(
-            content,
-            if (landscape) LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            ) else LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
+        root.addView(header, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(38)
+        ))
+
+        header.addView(text("♫", 27f, green, true))
+        header.addView(text("  MUSIC REMOTE", 17f, white, true),
+            LinearLayout.LayoutParams(0, dp(38), 1f).apply {
+                gravity = Gravity.CENTER_VERTICAL
+            })
+        header.addView(text("●", 13f, muted))
 
         art = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(Color.rgb(42, 42, 42))
             setImageResource(android.R.drawable.ic_media_play)
-            contentDescription = "Albüm kapağı"
+            setBackground(rounded(Color.rgb(38, 39, 44), 16))
             clipToOutline = true
+            contentDescription = "Albüm kapağı"
         }
+        root.addView(art, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ).apply {
+            topMargin = dp(20)
+            bottomMargin = dp(22)
+        })
 
-        val artworkSize = if (landscape) 270 else 300
-        content.addView(
-            art,
-            LinearLayout.LayoutParams(
-                if (landscape) dp(artworkSize) else minOf(dp(artworkSize), resources.displayMetrics.widthPixels - dp(48)),
-                if (landscape) dp(artworkSize) else minOf(dp(artworkSize), resources.displayMetrics.widthPixels - dp(48))
-            ).apply {
-                gravity = Gravity.CENTER
-                if (landscape) {
-                    marginEnd = dp(28)
-                } else {
-                    bottomMargin = dp(24)
-                }
-            }
-        )
+        title = text("Henüz müzik algılanmadı", 24f, white, true)
+        title.maxLines = 2
+        title.setPadding(dp(4), dp(2), dp(4), dp(2))
+        root.addView(title, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
 
-        val info = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-        }
-        content.addView(
-            info,
-            if (landscape) LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            ) else LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        val heading = TextView(this).apply {
-            text = "MUSIC REMOTE"
-            textSize = 14f
-            letterSpacing = 0.15f
-            setTextColor(Color.rgb(30, 215, 96))
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-        }
-        info.addView(heading, matchWrap())
-
-        title = TextView(this).apply {
-            text = "Henüz müzik algılanmadı"
-            textSize = 24f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(12), dp(8), dp(4))
-        }
-        info.addView(title, matchWrap())
-
-        artist = TextView(this).apply {
-            text = "Spotify veya YouTube Music'i başlatın"
-            textSize = 16f
-            setTextColor(Color.rgb(179, 179, 179))
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(4), dp(8), dp(12))
-        }
-        info.addView(artist, matchWrap())
+        artist = text("Spotify veya YouTube Music'i başlatın", 16f, muted)
+        artist.maxLines = 2
+        root.addView(artist, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(5)
+        })
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        info.addView(
-            controls,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(8)
-            }
-        )
+        root.addView(controls, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(82)
+        ).apply {
+            topMargin = dp(20)
+        })
 
-        controls.addView(controlButton("⏮", "Önceki") {
-            selectedController?.transportControls?.skipToPrevious()
+        controls.addView(iconButton("⏮", false) {
+            controller?.transportControls?.skipToPrevious()
             handler.postDelayed({ refreshMedia() }, 300)
-        })
+        }, LinearLayout.LayoutParams(0, dp(58), 1f))
 
-        controls.addView(controlButton("▶", "Oynat veya duraklat") {
-            val controller = selectedController
-            if (controller != null) {
-                if (controller.playbackState?.state ==
-                    android.media.session.PlaybackState.STATE_PLAYING
-                ) {
-                    controller.transportControls.pause()
-                } else {
-                    controller.transportControls.play()
-                }
-            }
-            handler.postDelayed({ refreshMedia() }, 350)
-        })
-
-        controls.addView(controlButton("⏭", "Sonraki") {
-            selectedController?.transportControls?.skipToNext()
-            handler.postDelayed({ refreshMedia() }, 350)
-        })
-
-        status = TextView(this).apply {
-            text = "Medya oturumu bekleniyor"
-            textSize = 12f
-            setTextColor(Color.rgb(30, 215, 96))
+        val play = TextView(this).apply {
+            text = "▶"
+            textSize = 28f
+            setTextColor(black)
             gravity = Gravity.CENTER
-            setPadding(0, dp(14), 0, dp(8))
+            background = rounded(green, 100)
+            contentDescription = "Oynat veya duraklat"
+            setOnClickListener {
+                val c = controller
+                if (c != null) {
+                    if (c.playbackState?.state ==
+                        android.media.session.PlaybackState.STATE_PLAYING
+                    ) c.transportControls.pause()
+                    else c.transportControls.play()
+                }
+                handler.postDelayed({ refreshMedia() }, 350)
+            }
         }
-        info.addView(status, matchWrap())
+        controls.addView(play, LinearLayout.LayoutParams(dp(68), dp(68)).apply {
+            setMargins(dp(12), 0, dp(12), 0)
+        })
 
-        permissionButton = Button(this).apply {
-            text = "Medya erişimini etkinleştir"
+        controls.addView(iconButton("⏭", false) {
+            controller?.transportControls?.skipToNext()
+            handler.postDelayed({ refreshMedia() }, 300)
+        }, LinearLayout.LayoutParams(0, dp(58), 1f))
+
+        status = text("● ŞİMDİ ÇALIYOR", 12f, green, true)
+        root.addView(status, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(32)
+        ).apply {
+            topMargin = dp(4)
+        })
+
+        permission = Button(this).apply {
+            text = "MEDYA ERİŞİMİNİ ETKİNLEŞTİR"
+            textSize = 12f
+            setTextColor(white)
+            background = rounded(Color.rgb(43, 44, 49), 8)
+            isAllCaps = false
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             }
         }
-        info.addView(
-            permissionButton,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(8)
-            }
-        )
+        root.addView(permission, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(48)
+        ).apply {
+            topMargin = dp(8)
+        })
+    }
+
+    private fun iconButton(
+        symbol: String,
+        unused: Boolean,
+        action: () -> Unit
+    ) = TextView(this).apply {
+        text = symbol
+        textSize = 25f
+        setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER
+        contentDescription = if (symbol == "⏮") "Önceki" else "Sonraki"
+        setOnClickListener { action() }
     }
 
     private fun refreshMedia() {
-        val manager = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
+        val manager = getSystemService(MEDIA_SESSION_SERVICE)
+            as MediaSessionManager
         val component = ComponentName(this, MusicNotificationListener::class.java)
 
-        val controllers = try {
+        val sessions = try {
             manager.getActiveSessions(component)
         } catch (_: SecurityException) {
-            permissionButton.visibility = View.VISIBLE
+            permission.visibility = View.VISIBLE
             status.text = "Medya erişim iznini etkinleştirin"
             return
         } catch (_: Exception) {
@@ -243,88 +243,55 @@ class MainActivity : Activity() {
             return
         }
 
-        val supported = controllers.filter {
+        val supported = sessions.filter {
             val pkg = it.packageName.lowercase()
-            pkg.contains("spotify") || pkg.contains("youtube") || pkg.contains("music")
+            pkg.contains("spotify") || pkg.contains("youtube") ||
+                pkg.contains("music")
         }
-
-        val playing = supported.firstOrNull {
+        controller = supported.firstOrNull {
             it.playbackState?.state ==
                 android.media.session.PlaybackState.STATE_PLAYING
-        }
-        val controller = playing ?: supported.firstOrNull()
-        selectedController = controller
+        } ?: supported.firstOrNull()
 
-        if (controller == null) {
+        val c = controller
+        if (c == null) {
             title.text = "Henüz müzik algılanmadı"
             artist.text = "Spotify veya YouTube Music'i başlatın"
             status.text = "Müzik bekleniyor"
             art.setImageResource(android.R.drawable.ic_media_play)
-            permissionButton.visibility = View.VISIBLE
+            permission.visibility = View.VISIBLE
             lastKey = ""
             return
         }
 
-        permissionButton.visibility = View.GONE
-
-        val metadata = controller.metadata
+        permission.visibility = View.GONE
+        val metadata = c.metadata
         val track = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
         val performer = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: ""
 
         title.text = track.ifBlank { "Bilinmeyen parça" }
-        artist.text = performer.ifBlank { sourceName(controller.packageName) }
-
-        status.text = when (controller.playbackState?.state) {
-            android.media.session.PlaybackState.STATE_PLAYING ->
-                "● ŞİMDİ ÇALIYOR · ${sourceName(controller.packageName)}"
-            android.media.session.PlaybackState.STATE_PAUSED ->
-                "DURAKLATILDI · ${sourceName(controller.packageName)}"
-            else -> "MEDYA OTURUMU · ${sourceName(controller.packageName)}"
+        artist.text = performer.ifBlank {
+            if (c.packageName.contains("youtube")) "YouTube Music" else "Spotify"
         }
 
-        val key = "${controller.packageName}|$track|$performer"
+        status.text = when (c.playbackState?.state) {
+            android.media.session.PlaybackState.STATE_PLAYING ->
+                "● ŞİMDİ ÇALIYOR"
+            android.media.session.PlaybackState.STATE_PAUSED ->
+                "DURAKLATILDI"
+            else -> "MEDYA OTURUMU BAĞLANDI"
+        }
+
+        val key = "${c.packageName}|$track|$performer"
         if (key != lastKey) {
             val bitmap = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
                 ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-
-            if (bitmap != null) {
-                art.setImageBitmap(bitmap)
-            } else {
-                art.setImageResource(android.R.drawable.ic_media_play)
-            }
+            if (bitmap != null) art.setImageBitmap(bitmap)
+            else art.setImageResource(android.R.drawable.ic_media_play)
             lastKey = key
         }
     }
-
-    private fun sourceName(pkg: String): String =
-        if (pkg.contains("youtube")) "YouTube Music" else "Spotify"
-
-    private fun controlButton(
-        symbol: String,
-        description: String,
-        action: () -> Unit
-    ): Button = Button(this).apply {
-        text = symbol
-        contentDescription = description
-        textSize = 22f
-        setTextColor(Color.WHITE)
-        setBackgroundTintList(
-            android.content.res.ColorStateList.valueOf(Color.rgb(38, 38, 38))
-        )
-        setOnClickListener { action() }
-        layoutParams = LinearLayout.LayoutParams(0, dp(62), 1f).apply {
-            setMargins(dp(5), 0, dp(5), 0)
-        }
-    }
-
-    private fun matchWrap() = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT
-    )
-
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
 }

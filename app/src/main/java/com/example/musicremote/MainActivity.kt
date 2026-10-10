@@ -303,7 +303,7 @@ class MainActivity : Activity() {
 
         status = TextView(this).apply {
             text = "●  MÜZİK BEKLENİYOR"
-            textSize = 12f
+            textSize = statusSizeSp()
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(green)
             gravity = Gravity.CENTER
@@ -419,15 +419,6 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
 
-        val footer = TextView(this).apply {
-            text = "M A D E   F O R   Y O U R   D R I V E"
-            textSize = 10f
-            setTextColor(muted)
-            gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, dp(0))
-        }
-        screen.addView(footer, matchWrap())
-
         val bottomSpace = View(this)
         screen.addView(bottomSpace, LinearLayout.LayoutParams(1, 0, 0.01f))
     }
@@ -539,6 +530,7 @@ class MainActivity : Activity() {
     private fun weatherIconSizeSp(): Float = uiPrefs.getInt("weather_size", 32).coerceIn(20, 44).toFloat()
     private fun temperatureSizeSp(): Float = uiPrefs.getInt("temperature_size", 25).coerceIn(20, 40).toFloat()
     private fun weatherDescriptionSizeSp(): Float = uiPrefs.getInt("weather_description_size", 11).coerceIn(9, 16).toFloat()
+    private fun statusSizeSp(): Float = uiPrefs.getInt("status_size", 12).coerceIn(10, 28).toFloat()
 
     private fun showSettingsDialog() {
         val outer = LinearLayout(this).apply {
@@ -607,6 +599,9 @@ class MainActivity : Activity() {
         ) { }
         val weatherSlider = addSlider(
             "Hava durumu boyutu", "weather_size", 20, 44, weatherIconSizeSp().toInt(), " sp"
+        ) { }
+        val statusSlider = addSlider(
+            "Şimdi çalınıyor yazısı", "status_size", 10, 28, statusSizeSp().toInt(), " sp"
         ) { }
 
         val themeLabel = TextView(this).apply {
@@ -678,6 +673,7 @@ class MainActivity : Activity() {
                     .putInt("weather_size", 20 + weatherSlider.progress)
                     .putInt("temperature_size", (20 + ((weatherSlider.progress * 20f) / 24f).toInt()).coerceIn(20, 40))
                     .putInt("weather_description_size", (9 + ((weatherSlider.progress * 7f) / 24f).toInt()).coerceIn(9, 16))
+                    .putInt("status_size", 10 + statusSlider.progress)
                     .putString("theme", (themeGroup.findViewById<RadioButton>(themeGroup.checkedRadioButtonId)?.tag as? String) ?: selectedTheme)
                     .apply()
                 dialog.dismiss()

@@ -1,4 +1,3 @@
-
 package com.example.musicremote
 
 import android.app.Activity
@@ -42,6 +41,8 @@ class MainActivity : Activity() {
 
     private var controller: MediaController? = null
     private var lastKey = ""
+    private var pendingCoverKey = ""
+    private var coverRetryCount = 0
 
     private val prefs by lazy {
         getSharedPreferences("music_remote_saved", MODE_PRIVATE)
@@ -223,7 +224,7 @@ class MainActivity : Activity() {
         )
         previous.setOnClickListener {
             controller?.transportControls?.skipToPrevious()
-            handler.postDelayed({ refreshMedia() }, 400)
+            refreshAfterTrackChange()
         }
 
         playButton = control("▶", green, bg, 31f)
@@ -256,7 +257,7 @@ class MainActivity : Activity() {
         )
         next.setOnClickListener {
             controller?.transportControls?.skipToNext()
-            handler.postDelayed({ refreshMedia() }, 400)
+            refreshAfterTrackChange()
         }
 
         permissionButton = control(
@@ -335,14 +336,10 @@ class MainActivity : Activity() {
             artist.text = performer.ifBlank { sourceName(active.packageName) }
 
             if (key != lastKey) {
-                val bitmap = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                    ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-                    ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-
-                if (bitmap != null) {
-                    art.setImageBitmap(bitmap)
-                    saveBitmap(bitmap)
-                }
+                // Yeni parçaya geçildiğinde eski kapağı göstermeyelim.
+                art.setImageResource(android.R.drawable.ic_media_play)
+                pendingCoverKey = key
+                coverRetryCount = 0
 
                 prefs.edit()
                     .putString("title", track)
@@ -351,6 +348,22 @@ class MainActivity : Activity() {
                     .apply()
 
                 lastKey = key
+            }
+
+            // Kapak bilgisi geç gelirse sonraki yenilemelerde tekrar dene.
+            if (pendingCoverKey == key && coverRetryCount < 10) {
+                val bitmap = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                    ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                    ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+
+                if (bitmap != null) {
+                    art.setImageBitmap(bitmap)
+                    saveBitmap(bitmap)
+                    pendingCoverKey = ""
+                    coverRetryCount = 0
+                } else {
+                    coverRetryCount++
+                }
             }
         }
 
@@ -373,6 +386,15 @@ class MainActivity : Activity() {
             elapsed.text = formatTime(position)
             durationText.text = formatTime(total)
         }
+    }
+
+    private fun refreshAfterTrackChange() {
+        // Medya uygulamasının yeni parça bilgilerini yayınlaması zaman alabilir.
+        handler.postDelayed({ refreshMedia() }, 250)
+        handler.postDelayed({ refreshMedia() }, 650)
+        handler.postDelayed({ refreshMedia() }, 1100)
+        handler.postDelayed({ refreshMedia() }, 1700)
+        handler.postDelayed({ refreshMedia() }, 2400)
     }
 
     private fun restoreLastTrack() {

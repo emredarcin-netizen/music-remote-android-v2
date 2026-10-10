@@ -86,7 +86,7 @@ class MainActivity : Activity() {
         val screen = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(20), dp(10), dp(20), dp(10))
+            setPadding(dp(14), dp(6), dp(14), dp(6))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.rgb(18, 32, 51), bg, Color.rgb(5, 12, 21))
@@ -103,7 +103,7 @@ class MainActivity : Activity() {
 
         val header = TextView(this).apply {
             text = "MUSIC REMOTE"
-            textSize = 25f
+            textSize = 24f
             letterSpacing = 0.06f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
@@ -113,15 +113,15 @@ class MainActivity : Activity() {
 
         val subtitle = TextView(this).apply {
             text = "Y O U R   M U S I C   •   Y O U R   M O M E N T"
-            textSize = 10f
+            textSize = 9f
             setTextColor(muted)
             gravity = Gravity.CENTER
-            setPadding(0, dp(3), 0, dp(8))
+            setPadding(0, dp(2), 0, dp(4))
         }
         screen.addView(subtitle, matchWrap())
 
         val topSpace = View(this)
-        screen.addView(topSpace, LinearLayout.LayoutParams(1, 0, 0.2f))
+        screen.addView(topSpace, LinearLayout.LayoutParams(1, 0, 0.05f))
 
         art = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -133,35 +133,35 @@ class MainActivity : Activity() {
 
         screen.addView(
             art,
-            LinearLayout.LayoutParams(dp(270), dp(270)).apply {
+            LinearLayout.LayoutParams(dp(330), dp(330)).apply {
                 gravity = Gravity.CENTER
             }
         )
 
         title = TextView(this).apply {
             text = "Henüz müzik algılanmadı"
-            textSize = 31f
+            textSize = 37f
             maxLines = 2
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setPadding(dp(2), dp(16), dp(2), 0)
+            setPadding(dp(2), dp(10), dp(2), 0)
         }
         screen.addView(title, matchWrap())
 
         artist = TextView(this).apply {
             text = "Spotify veya YouTube Music'i başlatın"
-            textSize = 22f
+            textSize = 26f
             maxLines = 1
             setTextColor(muted)
             gravity = Gravity.CENTER
-            setPadding(0, dp(5), 0, dp(8))
+            setPadding(0, dp(3), 0, dp(4))
         }
         screen.addView(artist, matchWrap())
 
         status = TextView(this).apply {
             text = "●  MÜZİK BEKLENİYOR"
-            textSize = 13f
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(green)
             gravity = Gravity.CENTER
@@ -169,7 +169,7 @@ class MainActivity : Activity() {
         screen.addView(status, matchWrap())
 
         val middleSpace = View(this)
-        screen.addView(middleSpace, LinearLayout.LayoutParams(1, 0, 0.25f))
+        screen.addView(middleSpace, LinearLayout.LayoutParams(1, 0, 0.02f))
 
         progress = SeekBar(this).apply {
             max = 1000
@@ -179,7 +179,7 @@ class MainActivity : Activity() {
                 android.content.res.ColorStateList.valueOf(green)
             progressBackgroundTintList =
                 android.content.res.ColorStateList.valueOf(panel)
-            minimumHeight = dp(34)
+            minimumHeight = dp(40)
             setPadding(dp(2), 0, dp(2), 0)
         }
 
@@ -187,7 +187,7 @@ class MainActivity : Activity() {
             progress,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(46)
+                dp(50)
             )
         )
 
@@ -211,14 +211,14 @@ class MainActivity : Activity() {
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(12), 0, dp(12))
+            setPadding(0, dp(6), 0, dp(6))
         }
         screen.addView(controls, matchWidth())
 
         val previous = control("⏮", panel, Color.WHITE, 26f)
         controls.addView(
             previous,
-            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+            LinearLayout.LayoutParams(0, dp(64), 1f).apply {
                 setMargins(0, 0, dp(7), 0)
             }
         )
@@ -230,7 +230,7 @@ class MainActivity : Activity() {
         playButton = control("▶", green, bg, 31f)
         controls.addView(
             playButton,
-            LinearLayout.LayoutParams(0, dp(78), 1.15f).apply {
+            LinearLayout.LayoutParams(0, dp(72), 1.15f).apply {
                 setMargins(dp(2), 0, dp(2), 0)
             }
         )
@@ -251,7 +251,7 @@ class MainActivity : Activity() {
         val next = control("⏭", panel, Color.WHITE, 26f)
         controls.addView(
             next,
-            LinearLayout.LayoutParams(0, dp(70), 1f).apply {
+            LinearLayout.LayoutParams(0, dp(64), 1f).apply {
                 setMargins(dp(7), 0, 0, 0)
             }
         )
@@ -270,7 +270,7 @@ class MainActivity : Activity() {
             permissionButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(54)
+                dp(48)
             )
         )
         permissionButton.setOnClickListener {
@@ -282,12 +282,12 @@ class MainActivity : Activity() {
             textSize = 10f
             setTextColor(muted)
             gravity = Gravity.CENTER
-            setPadding(0, dp(12), 0, dp(2))
+            setPadding(0, dp(6), 0, dp(0))
         }
         screen.addView(footer, matchWrap())
 
         val bottomSpace = View(this)
-        screen.addView(bottomSpace, LinearLayout.LayoutParams(1, 0, 0.15f))
+        screen.addView(bottomSpace, LinearLayout.LayoutParams(1, 0, 0.01f))
     }
 
     private fun refreshMedia() {
@@ -443,7 +443,7 @@ class MainActivity : Activity() {
 
     private fun smallTime(value: String) = TextView(this).apply {
         text = value
-        textSize = 15f
+        textSize = 16f
         setTextColor(muted)
         setPadding(dp(4), dp(2), dp(4), 0)
     }
